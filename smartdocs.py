@@ -18,7 +18,6 @@ from utils.helper_functions import (process_pdf_folder,
                                     embed_chunks,
                                     image_description_prompt,
                                     answer_query_prompt,
-                                    prompts_call,
                                     retrieve_top_k,
                                     embedding_functions)
 from utils.key import (json_path,
