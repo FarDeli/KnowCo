@@ -1,0 +1,12 @@
+
+import os
+import vertexai
+from typing import Literal, Optional
+
+project_id = 
+location = 
+json_path = 
+openai_key = 
+path_pdf = 
+path_image =
+elevenlab_key = 
