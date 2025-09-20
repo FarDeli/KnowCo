@@ -24,7 +24,6 @@ from utils.helper_functions import (process_pdf_folder,
                                     embed_chunks,
                                     image_description_prompt,
                                     answer_query_prompt,
-                                    prompts_call,
                                     retrieve_top_k,
                                     embedding_functions)
 from utils.key import (json_path,
@@ -59,9 +58,16 @@ def generate_coach_question(multimodal_model, embedding_model, chunk_cluster, ve
     context = "\n".join([chunk for chunk, _ in top_chunks])
 
     prompt = f"""
-    You are a professional coach. 
-    Based on the following company document context, generate ONE short, clear question
-    that tests the trainee’s knowledge. Do not provide the answer, only the question.
+    You are a professional corporate coach helping onboard new employees. 
+    Your task is to generate exactly **ONE** short, clear, and specific question 
+    that tests the trainee’s understanding of the company information provided. 
+
+    Guidelines:
+    - The question must be answerable using ONLY the given context.  
+    - Keep the wording concise (no more than 20 words).  
+    - Do NOT include the answer.  
+    - Do NOT ask generic questions — make it context-specific.  
+    - Format the output as plain text, with no prefixes like "Question:".
 
     Context:
     {context}
@@ -69,27 +75,6 @@ def generate_coach_question(multimodal_model, embedding_model, chunk_cluster, ve
 
     response = multimodal_model.generate_content(prompt)
     return response.text.strip()
-
-
-def generate_coach_line(context: str) -> str:
-    """Generate AI coach dialogue using OpenAI"""
-    response = client_openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional coach training a new employee. "
-                    "Your role is to ask clear, constructive questions about the company "
-                    "and its documents to test the trainee’s knowledge. "
-                    "Keep questions short, supportive, and focused. "
-                    "Do not answer the questions yourself."
-                )
-            },
-            {"role": "assistant", "content": context}
-        ]
-    )
-    return response.choices[0].message.content
 
 
 def speak_with_elevenlabs(text: str, voice_id: str, filename: str = "output.mp3"):
@@ -129,11 +114,33 @@ def listen_to_microphone() -> str:
     print(f"Trainee (you): {text}")
     return text
 
+def evaluate_answer(multimodal_model, coach_question: str, trainee_answer: str,
+                    embedding_model, chunk_cluster, vectors) -> str:
+    """
+    Evaluate the trainee's answer against document context.
+    """
+    # Retrieve relevant chunks for context
+    top_chunks = retrieve_top_k(coach_question, embedding_model, chunk_cluster, vectors, k=3)
+    context = "\n".join([chunk for chunk, _ in top_chunks])
+
+    prompt = f"""
+    You are a professional coach. 
+    Compare the trainee's answer to the provided company document context. 
+    Evaluate if the answer is correct, partially correct, or incorrect. 
+    Provide short, constructive feedback (max 2 sentences). 
+
+    Context:
+    {context}
+
+    Question: {coach_question}
+    Trainee's Answer: {trainee_answer}
+    """
+
+    response = multimodal_model.generate_content(prompt)
+    return response.text.strip()
 
 # --- Coaching Session Loop ---
 def main():
-    context = "Start the session by asking the trainee a simple question about company procedures."
-    print("🎓 Coaching session started. Say 'quit' to stop.\n")
 
     multimodal_model_2_0_flash = GenerativeModel("gemini-2.0-flash-001")
     embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-005")
@@ -158,6 +165,7 @@ def main():
         embedding_function=embedding_functions
     )
     safe_texts, vectors, failures = embed_chunks(chunk_cluster, embedding_model)
+    print("🎓 Coaching session started. Say 'quit' to stop.\n")
 
     # Coaching loop
     while True:
@@ -199,8 +207,21 @@ def main():
             speak_with_elevenlabs(response.text, COACH_VOICE, "assistant.mp3")
         else:
             # Replay trainee’s own answer in trainee voice
+            # Replay trainee’s own answer in trainee voice
             speak_with_elevenlabs(trainee_answer, TRAINEE_VOICE, "trainee.mp3")
-            print("✅ Answer noted! (Say 'help' if you want to check the doc.)")
+
+            # Step 3: Evaluate trainee’s answer
+            feedback = evaluate_answer(
+                multimodal_model_2_0_flash,
+                coach_question,
+                trainee_answer,
+                embedding_model,
+                chunk_cluster,
+                vectors
+            )
+            print("\n--- Coach Feedback ---")
+            print(feedback)
+            speak_with_elevenlabs(feedback, COACH_VOICE, "feedback.mp3")
 
 
 if __name__ == "__main__":
