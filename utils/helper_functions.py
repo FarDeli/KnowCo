@@ -77,13 +77,6 @@ def extract_tables_images_sources(
         if txt:
             page_entry["text"] = txt
 
-        # 2) Tables (try lattice then stream)
-        # tables = camelot.read_pdf(pdf_path, pages=str(page_num), flavor="lattice")
-        # if not tables:
-        #     tables = camelot.read_pdf(pdf_path, pages=str(page_num), flavor="stream")
-        # for tbl in tables:
-        #     # flatten_table should take a DataFrame and return a string
-        #     page_entry["tables"].append(flatten_table(tbl.df))
 
         # 3) Images + explanation
         for img_i, img_info in enumerate(page.get_images(), start=1):
@@ -121,6 +114,7 @@ def process_pdfs(
         FileNotFoundError: If the PDF folder does not exist.
         RuntimeError: If extraction of a specific PDF fails.
     """
+
     if not os.path.isdir(pdf_folder_path):
         raise FileNotFoundError(f"PDF folder not found: {pdf_folder_path}")
 
@@ -287,27 +281,33 @@ def embed_chunks(chunks, embedding_model):
 
 """*********************  Prompts  *********************"""
 
-
-def prompts_call(prompt_name: str, prompt_path: str = "/Users/najmehakbari/KnowCo/content/promptknowco.csv") -> str:
-    """
-    Return a stored prompt template by name.
-    Args:
-        prompt_name (str): Name of the prompt to retrieve (e.g., 'image_description_prompt').
-        prompt_path (str, optional): CSV file path containing Prompt_Name and Prompt columns.
-    Returns:
-        str: The prompt template text.
-    Raises:
-        ValueError: If no prompt is found for the given name.
-    """
-    df = pd.read_csv(prompt_path)
-    result = df[df["Prompt_Name"] == prompt_name]["Prompt"]
-    if result.empty:
-        raise ValueError(f"No prompt found for {prompt_name}")
-    return result.values[0]
+image_description_prompt = """You are a technical image analysis expert. You will be provided with various types of images extracted from documents like about company , technical blogs, and more.
+ Your task is to generate concise, accurate descriptions of the images without adding any information you are not confident about.
+ Focus on capturing the key details, trends, or relationships depicted in the image.
 
 
-image_description_prompt = prompts_call("image_description_prompt")
-answer_query_prompt = prompts_call("answer_query")
+ Important Guidelines:
+ * Prioritize accuracy: If you are uncertain about any detail, state ""Unknown"" or ""Not visible"" instead of guessing.
+ * Avoid hallucinations: Do not add information that is not directly supported by the image.
+ * Be specific: Use precise language to describe shapes, colors, textures, and any interactions depicted.
+ * Consider context: If the image is a screenshot or contains text, incorporate that information into your description.
+"""
+
+answer_query_prompt = """Task: Answer the following questions in detail, providing clear reasoning and evidence from the images and text in bullet points.
+ Instructions:
+
+ 1. **Analyze:** Carefully examine the provided images and text context.
+ 2. **Synthesize:** Integrate information from both the visual and textual elements.
+ 3. **Reason:** Deduce logical connections and inferences to address the question.
+ 4. **Respond:** Provide a concise, accurate answer in the following format:
+
+
+  * **Question:** [Question]
+  * **Answer:** [Direct response to the question]
+  * **Explanation:** [Bullet-point reasoning steps if applicable]
+
+
+ 5. **Ambiguity:** If the context is insufficient to answer, respond ""The context does not provide information on [Question]."""
 
 """*********************  Retrieve  *********************"""
 
